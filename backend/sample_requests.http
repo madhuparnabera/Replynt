@@ -1,0 +1,20 @@
+### Health Check
+GET http://127.0.0.1:8000/health
+
+### Analyze Email - Payment Reminder
+POST http://127.0.0.1:8000/analyze-email
+Content-Type: application/json
+
+{
+  "subject": "Invoice overdue",
+  "body": "Please clear the pending payment by Friday. Let us know once the transfer is completed."
+}
+
+### Analyze Email - Meeting Request
+POST http://127.0.0.1:8000/analyze-email
+Content-Type: application/json
+
+{
+  "subject": "Meeting tomorrow",
+  "body": "Can we schedule a 30-minute meeting tomorrow afternoon to review the product roadmap?"
+}
