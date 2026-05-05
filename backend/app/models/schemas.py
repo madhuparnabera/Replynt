@@ -23,3 +23,14 @@ class HealthResponse(BaseModel):
     version: str
     models_loaded: bool
     loaded_models: List[str]
+
+# app/models/schemas.py  — add this at the bottom
+
+from app.models.schemas_commitment import (
+    Commitment,
+    CommitmentStatus,
+    ExtractCommitmentsRequest,
+    ExtractCommitmentsResponse,
+    UpdateCommitmentRequest,
+    CommitmentListResponse,
+)

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.dependencies import model_service
 from app.api.routes.email import router as email_router
+from app.api.routes.commitments import router as commitments_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 
@@ -35,3 +36,4 @@ app.add_middleware(
 )
 
 app.include_router(email_router, prefix=settings.api_prefix)
+app.include_router(commitments_router, prefix=settings.api_prefix)

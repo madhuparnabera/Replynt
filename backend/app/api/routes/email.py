@@ -7,6 +7,15 @@ from app.services.model_service import ModelService
 
 router = APIRouter(tags=["email-analysis"])
 
+COMMITMENT_INTENTS = {
+    "request",
+    "follow_up",
+    "action_required",
+    "question",
+    "complaint",
+    "escalation",
+}
+
 
 @router.get("/health", response_model=HealthResponse)
 def health_check(
@@ -29,6 +38,12 @@ def analyze_email(
 ) -> AnalyzeEmailResponse:
     try:
         result = model_service.analyze_email(payload.subject, payload.body)
+
+        result["may_contain_commitment"] = (
+            not result.get("junk", False)
+            and str(result.get("intent", "")).lower() in COMMITMENT_INTENTS
+        )
+
         return AnalyzeEmailResponse(**result)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
