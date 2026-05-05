@@ -16,6 +16,8 @@ class AnalyzeEmailResponse(BaseModel):
     confidence_scores: Dict[str, Dict[str, float]] = Field(default_factory=dict)
     reasons: List[str] = Field(default_factory=list)
     may_contain_commitment: bool = False
+    commitments: List[dict] = Field(default_factory=list)
+    commitments_count: int = 0
 
 
 class HealthResponse(BaseModel):

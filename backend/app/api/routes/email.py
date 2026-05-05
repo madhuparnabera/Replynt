@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.dependencies import get_model_service
 from app.core.config import get_settings
 from app.models.schemas import AnalyzeEmailResponse, EmailRequest, HealthResponse
+from app.services.commitment_service import commitment_service
+from app.models.schemas_commitment import ExtractCommitmentsRequest
 from app.services.model_service import ModelService
 
 router = APIRouter(tags=["email-analysis"])
@@ -39,10 +41,27 @@ def analyze_email(
     try:
         result = model_service.analyze_email(payload.subject, payload.body)
 
-        result["may_contain_commitment"] = (
+        # Determine if this email may contain a commitment
+        may_contain_commitment = (
             not result.get("junk", False)
             and str(result.get("intent", "")).lower().replace(" ", "_") in COMMITMENT_INTENTS
         )
+        result["may_contain_commitment"] = may_contain_commitment
+
+        # If commitment is likely, run extraction inline and embed in response
+        commitments = []
+        if may_contain_commitment:
+            extraction = commitment_service.extract_and_optionally_save(
+                ExtractCommitmentsRequest(
+                    subject=payload.subject,
+                    body=payload.body,
+                    auto_save=True,
+                )
+            )
+            commitments = [c.model_dump() for c in extraction.commitments]
+
+        result["commitments"] = commitments
+        result["commitments_count"] = len(commitments)
 
         return AnalyzeEmailResponse(**result)
     except RuntimeError as exc:
