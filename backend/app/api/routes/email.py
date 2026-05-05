@@ -41,7 +41,7 @@ def analyze_email(
 
         result["may_contain_commitment"] = (
             not result.get("junk", False)
-            and str(result.get("intent", "")).lower() in COMMITMENT_INTENTS
+            and str(result.get("intent", "")).lower().replace(" ", "_") in COMMITMENT_INTENTS
         )
 
         return AnalyzeEmailResponse(**result)

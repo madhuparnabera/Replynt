@@ -15,6 +15,7 @@ class AnalyzeEmailResponse(BaseModel):
     needs_reply: Optional[bool] = None
     confidence_scores: Dict[str, Dict[str, float]] = Field(default_factory=dict)
     reasons: List[str] = Field(default_factory=list)
+    may_contain_commitment: bool = False
 
 
 class HealthResponse(BaseModel):
@@ -24,7 +25,6 @@ class HealthResponse(BaseModel):
     models_loaded: bool
     loaded_models: List[str]
 
-# app/models/schemas.py  — add this at the bottom
 
 from app.models.schemas_commitment import (
     Commitment,
