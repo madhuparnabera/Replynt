@@ -1,0 +1,474 @@
+{
+  "name": "REPLYNT Email Processing and Triage Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "postTriggerFunction": "console.log('Webhook initialized');"
+      },
+      "id": "18c21a3b-2f3b-4c48-8df0-1a1a2b2b3c3c",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "replynt-email-receiver"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/analyze-email",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "subject",
+              "value": "={{ $json.body.subject || $json.headers.subject || 'No Subject' }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.body.text || $json.body.body || 'No Body Content' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "23c21a3b-2f3b-4c48-8df0-2b2b3c3c4d4d",
+      "name": "Call FastAPI Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.junk }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "3bc21a3b-2f3b-4c48-8df0-3c3c4d4d5e5e",
+      "name": "Filter Junk",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "table": "emails",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "properties": [
+            {
+              "column": "email_id",
+              "value": "={{ $('Webhook Trigger').item.json.body.messageId || $('Webhook Trigger').item.json.body.email_id || gen_random_uuid() }}"
+            },
+            {
+              "column": "sender",
+              "value": "={{ $('Webhook Trigger').item.json.body.from || $('Webhook Trigger').item.json.body.sender || 'unknown@sender.com' }}"
+            },
+            {
+              "column": "subject",
+              "value": "={{ $('Webhook Trigger').item.json.body.subject || 'No Subject' }}"
+            },
+            {
+              "column": "body",
+              "value": "={{ $('Webhook Trigger').item.json.body.text || $('Webhook Trigger').item.json.body.body || '' }}"
+            },
+            {
+              "column": "priority",
+              "value": "={{ $json.priority || 'P3' }}"
+            },
+            {
+              "column": "intent",
+              "value": "={{ $json.intent || 'General inquiry' }}"
+            },
+            {
+              "column": "risk_score",
+              "value": "={{ $json.confidence_scores.junk.junk || 0.0 }}"
+            },
+            {
+              "column": "summary",
+              "value": "={{ $json.reasons.join(' ') }}"
+            }
+          ]
+        }
+      },
+      "id": "4bc21a3b-2f3b-4c48-8df0-4d4d5e5e6f6f",
+      "name": "Save Email to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        920,
+        450
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credential-id",
+          "name": "Supabase Connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "prompt": "You are a professional assistant handling email triage. Write a polite, appropriate, and structured draft response to the following email:\n\nSubject: {{ $('Webhook Trigger').item.json.body.subject }}\nSender: {{ $('Webhook Trigger').item.json.body.from || $('Webhook Trigger').item.json.body.sender }}\nContent:\n{{ $('Webhook Trigger').item.json.body.text || $('Webhook Trigger').item.json.body.body }}\n\nFastAPI classification context:\n- Primary Intent: {{ $json.intent }}\n- Triage Priority: {{ $json.priority }}\n\nEnsure the draft is professional, concise, addresses the user's intent directly, and leaves placeholders (like [Your Name]) where appropriate.",
+        "options": {}
+      },
+      "id": "5bc21a3b-2f3b-4c48-8df0-5e5e6f6f7g7g",
+      "name": "Generate Draft Response (LLM)",
+      "type": "n8n-nodes-base.openai",
+      "typeVersion": 1,
+      "position": [
+        1150,
+        450
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credential-id",
+          "name": "OpenAI API Connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": "draft_replies",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "properties": [
+            {
+              "column": "email_id",
+              "value": "={{ $('Webhook Trigger').item.json.body.messageId || $('Webhook Trigger').item.json.body.email_id }}"
+            },
+            {
+              "column": "subject",
+              "value": "=Re: {{ $('Webhook Trigger').item.json.body.subject }}"
+            },
+            {
+              "column": "draft_body",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        }
+      },
+      "id": "6bc21a3b-2f3b-4c48-8df0-6f6f7g7g8h8h",
+      "name": "Save Draft to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        450
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credential-id",
+          "name": "Supabase Connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $('Call FastAPI Backend').item.json.priority }}",
+              "value2": "P1"
+            }
+          ]
+        }
+      },
+      "id": "7bc21a3b-2f3b-4c48-8df0-7g7g8h8h9i9i",
+      "name": "Is Priority P1?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "table": "alerts",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "properties": [
+            {
+              "column": "email_id",
+              "value": "={{ $('Webhook Trigger').item.json.body.messageId || $('Webhook Trigger').item.json.body.email_id }}"
+            },
+            {
+              "column": "title",
+              "value": "=URGENT P1: {{ $('Webhook Trigger').item.json.body.subject }}"
+            },
+            {
+              "column": "message",
+              "value": "=An urgent P1 email was received from {{ $('Webhook Trigger').item.json.body.from || $('Webhook Trigger').item.json.body.sender }}. Intent classified: {{ $('Call FastAPI Backend').item.json.intent }}. Please review immediately."
+            },
+            {
+              "column": "is_read",
+              "value": false
+            }
+          ]
+        }
+      },
+      "id": "8bc21a3b-2f3b-4c48-8df0-8h8h9i9i0j0j",
+      "name": "Create Urgent Alert",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1820,
+        350
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credential-id",
+          "name": "Supabase Connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $('Call FastAPI Backend').item.json.commitments_count }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "9bc21a3b-2f3b-4c48-8df0-9i9i0j0j1k1k",
+      "name": "Has Commitments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "={{ $('Call FastAPI Backend').item.json.commitments }}"
+      },
+      "id": "0bc21a3b-2f3b-4c48-8df0-0j0j1k1k2l2l",
+      "name": "Loop Commitments",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [
+        2280,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "table": "commitments",
+        "dataToSend": "defineBelow",
+        "fieldsToSend": {
+          "properties": [
+            {
+              "column": "email_id",
+              "value": "={{ $('Webhook Trigger').item.json.body.messageId || $('Webhook Trigger').item.json.body.email_id }}"
+            },
+            {
+              "column": "action",
+              "value": "={{ $json.action }}"
+            },
+            {
+              "column": "raw_text",
+              "value": "={{ $json.raw_text }}"
+            },
+            {
+              "column": "who",
+              "value": "={{ $json.who || 'me' }}"
+            },
+            {
+              "column": "deadline",
+              "value": "={{ $json.deadline }}"
+            },
+            {
+              "column": "pattern_type",
+              "value": "={{ $json.pattern_type }}"
+            },
+            {
+              "column": "confidence",
+              "value": "={{ $json.confidence }}"
+            },
+            {
+              "column": "status",
+              "value": "pending"
+            }
+          ]
+        }
+      },
+      "id": "abc21a3b-2f3b-4c48-8df0-1k1k2l2l3m3m",
+      "name": "Save Commitment to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        350
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credential-id",
+          "name": "Supabase Connection"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "bbc21a3b-2f3b-4c48-8df0-2l2l3m3m4n4n",
+      "name": "Discard Junk",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        920,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call FastAPI Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call FastAPI Backend": {
+      "main": [
+        [
+          {
+            "node": "Filter Junk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Junk": {
+      "main": [
+        [
+          {
+            "node": "Discard Junk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Email to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Email to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Generate Draft Response (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Draft Response (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Save Draft to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Draft to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Is Priority P1?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Priority P1?": {
+      "main": [
+        [
+          {
+            "node": "Create Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Commitments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Urgent Alert": {
+      "main": [
+        [
+          {
+            "node": "Has Commitments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Commitments?": {
+      "main": [
+        [
+          {
+            "node": "Loop Commitments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Commitments": {
+      "main": [
+        [
+          {
+            "node": "Save Commitment to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": {},
+  "meta": {
+    "templateId": "replynt-triage-automation"
+  },
+  "pinData": {}
+}
