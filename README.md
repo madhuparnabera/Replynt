@@ -29,6 +29,52 @@ For a detailed view of the n8n pipeline nodes and database sequence diagrams, se
 
 ---
 
+## 🔄 End-to-End Project Flow
+
+REPLYNT automates the entire lifecycle of an email from receipt to response:
+
+```mermaid
+flowchart TD
+    A[Incoming Email] --> B[n8n Webhook / IMAP Listener]
+    B --> C[FastAPI Backend: /analyze-email]
+    C --> D{Is Junk?}
+    D -- Yes --> E[Discard / Spam Folder]
+    D -- No --> F[Save to Supabase: 'emails' table]
+    F --> G{Triage Classifications}
+    
+    G --> H[Priority P1?]
+    H -- Yes --> I[Insert Notification into 'alerts' table]
+    H -- No --> J[Skip Alert]
+    
+    G --> K[Has Commitments / Tasks?]
+    K -- Yes --> L[Extract Commitments & Insert into 'commitments' table]
+    K -- No --> M[Skip Tasks]
+    
+    G --> N[Needs Reply?]
+    N -- Yes --> O[Invoke LLM GPT-4o-mini Node]
+    O --> P[Insert response into 'draft_replies' table]
+    N -- No --> Q[Skip Draft Response]
+    
+    I & L & P --> R[Supabase Realtime Pub/Sub Channel]
+    R --> S[Next.js Frontend: Instant Dashboard Update]
+```
+
+### Detailed Flow Steps:
+1. **Email Ingestion**: The system monitors incoming emails via `n8n` triggers (IMAP polling or Webhook inputs).
+2. **Machine Learning Analysis**: The email text is forwarded to the FastAPI backend. It runs:
+   - **Junk Filtering** (Naive Bayes) to filter spam.
+   - **Priority Classification** (XGBoost) to assign urgency (P1, P2, P3).
+   - **Intent Classification** (SVC) to detect subject matter (e.g., Billing, Support, Complaint).
+   - **Needs Reply Prediction** (Random Forest) to determine if a reply is expected.
+3. **Database Insertion**: Classified emails are saved in the Supabase PostgreSQL database.
+4. **Conditional Automation Pathways**:
+   - **High Urgency**: If the email is P1, an instant alert is logged.
+   - **Task Extraction**: Any promises or deadlines (like "I will send it by Friday") are parsed, and a tracking task is added.
+   - **AI Reply Drafting**: For emails requiring a response, n8n invokes GPT-4o-mini to draft a context-aware reply using the intent and email content.
+5. **Realtime Web Dashboard**: Supabase triggers active listening channels in Next.js, instantly updating the UI with new cards, draft boxes, and alert banners without requiring a browser refresh.
+
+---
+
 ## 📁 Repository Structure
 
 ```text
